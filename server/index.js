@@ -126,20 +126,27 @@ app.use('/api/orders', orderRoutes);
 // Quejas / consultas (crear con auth opcional; listar propias con token)
 app.use('/api/contact-tickets', contactTicketRoutes);
 
-// Serve static files from the React app
-// Note: We assume the client is built to ../client/dist
+// React build (../client/dist): solo si existe (p. ej. deploy monolito o build local).
+// En Render con root = server no hay client/dist; el front vive en Vercel u otro host.
 const clientDistPath = path.join(__dirname, '../client/dist');
-app.use(express.static(clientDistPath));
+const clientIndexHtml = path.join(clientDistPath, 'index.html');
+const hasClientDist = fs.existsSync(clientIndexHtml);
 
-// The "catchall" handler: for any request that doesn't
-// match one above, send back React's index.html file.
-app.get('*', (req, res) => {
-    // If the file exists, serve it, otherwise serve index.html
-    // But express.static handles existing files, so here we just serve index.html
-    // Check if we are in development or production
-    // For now, simple fallback
-    res.sendFile(path.join(clientDistPath, 'index.html'));
-});
+if (hasClientDist) {
+    app.use(express.static(clientDistPath));
+    app.get('*', (req, res) => {
+        res.sendFile(clientIndexHtml);
+    });
+} else {
+    app.use((req, res) => {
+        if (req.path.startsWith('/api')) {
+            return res.status(404).json({ error: 'Not found' });
+        }
+        res.status(404).type('text').send(
+            'API only — no frontend bundle on this host. Deploy the client (e.g. Vercel) and set VITE_API_URL.'
+        );
+    });
+}
 
 // Función para iniciar servidor HTTP
 const startHttpServer = () => {

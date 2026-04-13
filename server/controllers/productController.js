@@ -39,7 +39,7 @@ export const getProductById = async (req, res) => {
 // Crear producto (solo admin)
 export const createProduct = async (req, res) => {
     try {
-        const { name, description, price, image, category, stock } = req.body;
+        const { name, description, price, image, category, stock, isActive } = req.body;
 
         if (!name || !price) {
             return res.status(400).json({ message: 'Nombre y precio son requeridos' });
@@ -51,7 +51,8 @@ export const createProduct = async (req, res) => {
             price,
             image, // URL de Cloudinary
             category,
-            stock: 0 // Siempre inicia con stock 0, se maneja con kardex
+            stock: 0, // Siempre inicia con stock 0, se maneja con kardex
+            isActive: isActive !== undefined ? Boolean(isActive) : true,
         });
 
         res.status(201).json(product);

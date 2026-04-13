@@ -57,7 +57,16 @@ function ProductImageDetailTrigger({ product, onOpen, height = 140, compact = fa
                 height={compact ? 60 : 140}
                 style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                 onError={(e) => {
-                    e.target.src = fallback
+                    const orig = product.image
+                    if (
+                        typeof orig === 'string' &&
+                        orig.includes('res.cloudinary.com') &&
+                        e.currentTarget.src !== orig
+                    ) {
+                        e.currentTarget.src = orig
+                        return
+                    }
+                    e.currentTarget.src = fallback
                 }}
             />
             <button
@@ -726,6 +735,8 @@ function App() {
                     (p.description && String(p.description).toLowerCase().includes(q))
             )
         }
+        // Catálogo = solo comprables (aunque el admin reciba inactivos por API, aquí no se mezclan)
+        list = list.filter((p) => p.isActive !== false)
         return list
     }, [products, selectedCategory, catalogSearch, categoryMapCatalog])
 

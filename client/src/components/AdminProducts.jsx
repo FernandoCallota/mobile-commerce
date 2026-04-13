@@ -16,6 +16,7 @@ export default function AdminProducts() {
     const [showModal, setShowModal] = useState(false)
     const [editingProduct, setEditingProduct] = useState(null)
     const [uploadingImage, setUploadingImage] = useState(false)
+    const [saving, setSaving] = useState(false)
     const [categories, setCategories] = useState([])
     const [formData, setFormData] = useState({
         name: '',
@@ -138,6 +139,7 @@ export default function AdminProducts() {
     const handleSubmit = async (e) => {
         e.preventDefault()
         setError('')
+        if (saving || uploadingImage) return
 
         if (!formData.name || !formData.price) {
             setError('Nombre y precio son requeridos')
@@ -145,6 +147,7 @@ export default function AdminProducts() {
         }
 
         try {
+            setSaving(true)
             // Asegurar que el stock siempre sea 0 para productos nuevos
             const productData = editingProduct 
                 ? { ...formData } // Al editar, no modificamos el stock
@@ -163,6 +166,8 @@ export default function AdminProducts() {
             setShowModal(false)
         } catch (err) {
             setError(err.message || 'Error al guardar producto')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -329,6 +334,16 @@ export default function AdminProducts() {
                                             height: 'auto',
                                             objectFit: 'contain',
                                             objectPosition: 'center',
+                                        }}
+                                        onError={(e) => {
+                                            const o = product.image
+                                            if (
+                                                typeof o === 'string' &&
+                                                o.includes('res.cloudinary.com') &&
+                                                e.currentTarget.src !== o
+                                            ) {
+                                                e.currentTarget.src = o
+                                            }
                                         }}
                                     />
                                 ) : (
@@ -525,6 +540,16 @@ export default function AdminProducts() {
                                                     maxHeight: '100%', 
                                                     objectFit: 'contain',
                                                     borderRadius: '8px'
+                                                }}
+                                                onError={(e) => {
+                                                    const raw = imagePreview || formData.image
+                                                    if (
+                                                        typeof raw === 'string' &&
+                                                        raw.includes('res.cloudinary.com') &&
+                                                        e.currentTarget.src !== raw
+                                                    ) {
+                                                        e.currentTarget.src = raw
+                                                    }
                                                 }}
                                             />
                                         </div>
@@ -759,8 +784,12 @@ export default function AdminProducts() {
                                         <span style={{ fontSize: '1rem', color: '#fff' }}>Producto activo</span>
                                     </label>
 
-                                    <button className="btn-primary" type="submit" disabled={uploadingImage}>
-                                        {uploadingImage ? 'Subiendo imagen...' : (editingProduct ? 'Actualizar' : 'Crear') + ' Producto'}
+                                    <button className="btn-primary" type="submit" disabled={uploadingImage || saving}>
+                                        {uploadingImage
+                                            ? 'Subiendo imagen...'
+                                            : saving
+                                              ? 'Guardando...'
+                                              : (editingProduct ? 'Actualizar' : 'Crear') + ' Producto'}
                                     </button>
                                 </form>
                             </motion.div>

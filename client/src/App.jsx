@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 const Register = lazy(() => import('./components/Register'))
 const AdminUsers = lazy(() => import('./components/AdminUsers'))
 const AdminProducts = lazy(() => import('./components/AdminProducts'))
+const AdminCategories = lazy(() => import('./components/AdminCategories'))
 const AdminKardex = lazy(() => import('./components/AdminKardex'))
 const AdminOrders = lazy(() => import('./components/AdminOrders'))
 const CheckoutModal = lazy(() => import('./components/CheckoutModal'))
@@ -18,6 +19,7 @@ const PaginationBar = lazy(() => import('./components/PaginationBar.jsx'))
 const CustomSelect = lazy(() => import('./components/CustomSelect.jsx'))
 
 import { authAPI, productsAPI, setTokenExpiredCallback, displayImageUrl } from './services/api'
+import { categoriesAPI } from './services/categoriesAPI.js'
 import { orderAPI } from './services/orderAPI.js'
 import { contactTicketAPI } from './services/contactTicketAPI.js'
 import { isLowStock, LOW_STOCK_THRESHOLD } from './utils/stockThreshold.js'
@@ -316,6 +318,7 @@ const ADMIN_SUB_TABS = new Set([
     'admin-orders',
     'admin-contact-tickets',
     'admin-products',
+    'admin-categories',
     'admin-users',
     'admin-kardex',
 ])
@@ -351,6 +354,8 @@ function App() {
     const [contactOrders, setContactOrders] = useState([])
     const [contactOrdersLoading, setContactOrdersLoading] = useState(false)
     const [contactSubmitting, setContactSubmitting] = useState(false)
+    /** Categorías desde la API (tabla categories) */
+    const [apiCategories, setApiCategories] = useState([])
 
     const resolveDetailProduct = (item) => products.find((x) => x.id === item.id) || item
 
@@ -371,6 +376,15 @@ function App() {
         }
     }, [])
 
+    const loadCategories = useCallback(async () => {
+        try {
+            const data = await categoriesAPI.getAll()
+            setApiCategories(Array.isArray(data) ? data : [])
+        } catch (error) {
+            console.error('Error al cargar categorías:', error)
+        }
+    }, [])
+
     useEffect(() => {
         if (!detailProduct) return
         const prev = document.body.style.overflow
@@ -385,6 +399,7 @@ function App() {
         // Cargar productos después de un pequeño delay para mejorar FCP
         const timer = setTimeout(() => {
             loadProducts()
+            loadCategories()
         }, 100)
         
         checkAuth()
@@ -398,13 +413,16 @@ function App() {
         })
         
         return () => clearTimeout(timer)
-    }, [loadProducts])
+    }, [loadProducts, loadCategories])
 
     useEffect(() => {
-        const onInventory = () => loadProducts()
+        const onInventory = () => {
+            loadProducts()
+            loadCategories()
+        }
         window.addEventListener(INVENTORY_UPDATED_EVENT, onInventory)
         return () => window.removeEventListener(INVENTORY_UPDATED_EVENT, onInventory)
-    }, [loadProducts])
+    }, [loadProducts, loadCategories])
 
     // Verificar periódicamente si el token está expirado (cada minuto)
     useEffect(() => {
@@ -638,8 +656,8 @@ function App() {
         }
     }
 
-    const categoryMapCatalog = useMemo(
-        () => ({
+    const categoryMapCatalog = useMemo(() => {
+        const fallback = {
             pollos: ['pollos', 'pollo'],
             gallos: ['gallos', 'gallo'],
             ponedoras: ['ponedoras', 'ponedora'],
@@ -648,12 +666,19 @@ function App() {
             porcinos: ['porcinos', 'porcino', 'cerdos', 'cerdo'],
             mascotas: ['mascotas', 'mascota', 'perros', 'gatos'],
             medicina: ['medicamentos', 'medicina', 'medicamento'],
-        }),
-        []
-    )
+        }
+        if (!apiCategories.length) return fallback
+        const m = { ...fallback }
+        for (const c of apiCategories) {
+            if (c.slug && Array.isArray(c.keywords) && c.keywords.length) {
+                m[c.slug] = c.keywords.map((k) => String(k).toLowerCase())
+            }
+        }
+        return m
+    }, [apiCategories])
 
-    const homeCategories = useMemo(
-        () => [
+    const homeCategories = useMemo(() => {
+        const fallback = [
             { id: 'ponedoras', label: 'PONEDORAS' },
             { id: 'pollos', label: 'POLLOS' },
             { id: 'porcinos', label: 'PORCINOS' },
@@ -662,9 +687,36 @@ function App() {
             { id: 'pavos', label: 'PAVOS' },
             { id: 'mascotas', label: 'MASCOTAS' },
             { id: 'medicina', label: 'MEDICINA' },
-        ],
-        []
-    )
+        ]
+        if (!apiCategories.length) return fallback
+        return [...apiCategories]
+            .filter((c) => c.isActive !== false)
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+            .map((c) => ({ id: c.slug, label: String(c.name || '').toUpperCase() }))
+    }, [apiCategories])
+
+    /** Pills del catálogo (Todos + categorías de la API o fallback) */
+    const catalogNavCategories = useMemo(() => {
+        const fallback = [
+            { id: 'todos', label: 'Todos' },
+            { id: 'pollos', label: 'Pollos' },
+            { id: 'gallos', label: 'Gallos' },
+            { id: 'ponedoras', label: 'Ponedoras' },
+            { id: 'patos', label: 'Patos' },
+            { id: 'pavos', label: 'Pavos' },
+            { id: 'porcinos', label: 'Porcinos' },
+            { id: 'mascotas', label: 'Mascotas' },
+            { id: 'medicina', label: 'Medicamentos' },
+        ]
+        if (!apiCategories.length) return fallback
+        return [
+            { id: 'todos', label: 'Todos' },
+            ...apiCategories
+                .filter((c) => c.isActive !== false)
+                .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+                .map((c) => ({ id: c.slug, label: c.name })),
+        ]
+    }, [apiCategories])
 
     const HOME_CATEGORIES_PAGE_SIZE = 2
     const homeCategoryPageCount = Math.max(1, Math.ceil(homeCategories.length / HOME_CATEGORIES_PAGE_SIZE))
@@ -715,17 +767,30 @@ function App() {
     )
 
     const catalogFilteredProducts = useMemo(() => {
-        let list =
-            selectedCategory === 'todos'
-                ? products
-                : products.filter((p) => {
-                      const keywords = categoryMapCatalog[selectedCategory] || []
-                      return keywords.some(
-                          (keyword) =>
-                              p.name.toLowerCase().includes(keyword) ||
-                              (p.category && p.category.toLowerCase().includes(keyword))
-                      )
-                  })
+        let list = products
+        if (selectedCategory !== 'todos') {
+            const cat = apiCategories.find((c) => c.slug === selectedCategory)
+            if (cat) {
+                list = products.filter((p) => {
+                    if (p.categoryId != null && cat.id === p.categoryId) return true
+                    const keywords = categoryMapCatalog[selectedCategory] || []
+                    return keywords.some(
+                        (keyword) =>
+                            p.name.toLowerCase().includes(keyword) ||
+                            (p.category && p.category.toLowerCase().includes(keyword))
+                    )
+                })
+            } else {
+                const keywords = categoryMapCatalog[selectedCategory] || []
+                list = products.filter((p) =>
+                    keywords.some(
+                        (keyword) =>
+                            p.name.toLowerCase().includes(keyword) ||
+                            (p.category && p.category.toLowerCase().includes(keyword))
+                    )
+                )
+            }
+        }
         const q = catalogSearch.trim().toLowerCase()
         if (q) {
             list = list.filter(
@@ -735,10 +800,9 @@ function App() {
                     (p.description && String(p.description).toLowerCase().includes(q))
             )
         }
-        // Catálogo = solo comprables (aunque el admin reciba inactivos por API, aquí no se mezclan)
         list = list.filter((p) => p.isActive !== false)
         return list
-    }, [products, selectedCategory, catalogSearch, categoryMapCatalog])
+    }, [products, selectedCategory, catalogSearch, categoryMapCatalog, apiCategories])
 
     const catalogTotalPages = Math.max(1, Math.ceil(catalogFilteredProducts.length / CATALOG_PAGE_SIZE))
     const catalogPageSafe = Math.min(Math.max(1, catalogPage), catalogTotalPages)
@@ -1361,17 +1425,7 @@ function App() {
                                 }}
                             >
                                 <div style={{ display: 'flex', gap: '10px', paddingBottom: '10px' }}>
-                                    {[
-                                        { id: 'todos', label: 'Todos', image: null },
-                                        { id: 'pollos', label: 'Pollos', image: 'polloos.jpg' },
-                                        { id: 'gallos', label: 'Gallos', image: 'gallos.jpg' },
-                                        { id: 'ponedoras', label: 'Ponedoras', image: 'ponedoras.png' },
-                                        { id: 'patos', label: 'Patos', image: 'patos.jpg' },
-                                        { id: 'pavos', label: 'Pavos', image: 'pavos.jpg' },
-                                        { id: 'porcinos', label: 'Porcinos', image: 'porcinoos.jpeg' },
-                                        { id: 'mascotas', label: 'Mascotas', image: 'mascotas.jpg' },
-                                        { id: 'medicina', label: 'Medicamentos', image: 'medicina.jpeg' }
-                                    ].map((category) => (
+                                    {catalogNavCategories.map((category) => (
                                         <button
                                             key={category.id}
                                             onClick={() => setSelectedCategory(category.id)}
@@ -1398,7 +1452,8 @@ function App() {
 
                             {/* Banner de Categoría */}
                             {selectedCategory !== 'todos' && (() => {
-                                const category = [
+                                const fromApi = apiCategories.find((c) => c.slug === selectedCategory)
+                                const fallbackBanner = [
                                     { id: 'pollos', image: 'polloos.jpg', title: 'LÍNEA POLLOS' },
                                     { id: 'gallos', image: 'gallos.jpg', title: 'LÍNEA GALLOS' },
                                     { id: 'ponedoras', image: 'ponedoras.png', title: 'LÍNEA PONEDORAS' },
@@ -1406,8 +1461,14 @@ function App() {
                                     { id: 'pavos', image: 'pavos.jpg', title: 'LÍNEA PAVOS' },
                                     { id: 'porcinos', image: 'porcinoos.jpeg', title: 'LÍNEA PORCINOS' },
                                     { id: 'mascotas', image: 'mascotas.jpg', title: 'LÍNEA MASCOTAS' },
-                                    { id: 'medicina', image: 'medicina.jpeg', title: 'MEDICAMENTOS' }
-                                ].find(c => c.id === selectedCategory);
+                                    { id: 'medicina', image: 'medicina.jpeg', title: 'MEDICAMENTOS' },
+                                ].find((c) => c.id === selectedCategory)
+                                const category = fromApi?.bannerImage
+                                    ? {
+                                          image: fromApi.bannerImage,
+                                          title: `LÍNEA ${String(fromApi.name || '').toUpperCase()}`,
+                                      }
+                                    : fallbackBanner
 
                                 if (category) {
                                     return (
@@ -1781,6 +1842,12 @@ function App() {
                     {activeTab === 'admin-products' && (
                         <motion.div key="admin-products" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                             <AdminProducts />
+                        </motion.div>
+                    )}
+
+                    {activeTab === 'admin-categories' && user?.role === 'administrador' && (
+                        <motion.div key="admin-categories" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                            <AdminCategories />
                         </motion.div>
                     )}
 

@@ -1,12 +1,14 @@
 import sequelize from '../config/db.config.js';
 import User from './User.js';
 import Product from './Product.js';
+import Category from './Category.js';
 import Order from './Order.js';
 import OrderItem from './OrderItem.js';
 import OrderStatusHistory from './OrderStatusHistory.js';
 import RefreshToken from './RefreshToken.js';
 import Kardex from './Kardex.js';
 import ContactTicket from './ContactTicket.js';
+import { DEFAULT_CATEGORIES } from '../data/defaultCategories.js';
 
 // Establecer relaciones
 RefreshToken.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE' });
@@ -22,6 +24,81 @@ ContactTicket.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(ContactTicket, { foreignKey: 'userId', as: 'contactTickets' });
 ContactTicket.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
 Order.hasMany(ContactTicket, { foreignKey: 'orderId', as: 'contactTickets' });
+
+Product.belongsTo(Category, { foreignKey: 'categoryId', as: 'productCategory' });
+Category.hasMany(Product, { foreignKey: 'categoryId', as: 'products' });
+
+/** Asegura columna category_id en products (BD ya creada sin FK) */
+async function migrateCategoriesSchema(sequelize) {
+    const run = async (sql, label) => {
+        try {
+            await sequelize.query(sql);
+        } catch (e) {
+            console.warn(`migrateCategories [${label}]: ${e.message}`);
+        }
+    };
+    await run(
+        `ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE;`,
+        'category_id'
+    );
+}
+
+async function seedDefaultCategories() {
+    for (const row of DEFAULT_CATEGORIES) {
+        const [cat, created] = await Category.findOrCreate({
+            where: { slug: row.slug },
+            defaults: {
+                name: row.name,
+                sortOrder: row.sortOrder,
+                bannerImage: row.bannerImage,
+                keywords: row.keywords,
+                isActive: true,
+            },
+        });
+        if (!created) {
+            await cat.update({
+                name: row.name,
+                sortOrder: row.sortOrder,
+                bannerImage: row.bannerImage,
+                keywords: row.keywords,
+            });
+        }
+    }
+}
+
+/** Texto libre antiguo → slug conocido */
+const LEGACY_CATEGORY_TO_SLUG = {
+    aves: 'pollos',
+    medicamentos: 'medicina',
+    medicina: 'medicina',
+};
+
+async function backfillProductCategories() {
+    const categories = await Category.findAll();
+    const bySlug = Object.fromEntries(categories.map((c) => [c.slug, c]));
+    const products = await Product.findAll({
+        where: { categoryId: null },
+    });
+    for (const p of products) {
+        let cat = null;
+        const raw = (p.category || '').trim().toLowerCase();
+        if (raw) {
+            const legacySlug = LEGACY_CATEGORY_TO_SLUG[raw];
+            cat =
+                categories.find((c) => c.name.toLowerCase() === raw) ||
+                categories.find((c) => c.slug === raw) ||
+                (legacySlug ? bySlug[legacySlug] : null);
+        }
+        if (!cat) {
+            cat = categories.find((c) =>
+                (c.keywords || []).some((k) => p.name && p.name.toLowerCase().includes(String(k).toLowerCase()))
+            );
+        }
+        if (cat) {
+            await p.update({ categoryId: cat.id, category: cat.name });
+        }
+    }
+}
 
 /** Columnas nuevas de pedidos / pago (BD existentes sin alter automático) */
 async function migrateOrdersColumns(sequelize) {
@@ -115,6 +192,9 @@ const syncModels = async (force = false) => {
     try {
         await sequelize.sync({ force });
         await migrateOrdersColumns(sequelize);
+        await migrateCategoriesSchema(sequelize);
+        await seedDefaultCategories();
+        await backfillProductCategories();
         console.log('✅ Modelos sincronizados con la base de datos');
     } catch (error) {
         console.error('❌ Error al sincronizar modelos:', error);
@@ -124,6 +204,7 @@ const syncModels = async (force = false) => {
 export {
     User,
     Product,
+    Category,
     Order,
     OrderItem,
     OrderStatusHistory,

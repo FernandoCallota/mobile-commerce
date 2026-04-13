@@ -16,6 +16,7 @@ import kardexRoutes from './routes/kardexRoutes.js';
 import imageProxyRoutes from './routes/imageProxyRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import contactTicketRoutes from './routes/contactTicketRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import { runAutoEntregadoJob } from './jobs/autoEntregado.js';
 
@@ -124,6 +125,9 @@ app.use('/api/auth', authRoutes);
 
 // Rutas de productos
 app.use('/api/products', productRoutes);
+
+// Categorías (CRUD admin; listado público solo activas)
+app.use('/api/categories', categoryRoutes);
 
 // Rutas de administrador (requieren autenticación y rol admin)
 app.use('/api/admin', adminRoutes);

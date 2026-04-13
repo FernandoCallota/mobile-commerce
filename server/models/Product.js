@@ -29,6 +29,11 @@ const Product = sequelize.define('Product', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    /** FK a categories (preferido); category texto se mantiene por compatibilidad */
+    categoryId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
     category: {
         type: DataTypes.STRING,
         allowNull: true

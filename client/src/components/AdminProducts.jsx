@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Package, Plus, Edit, Trash2, Search, X, Upload, Image as ImageIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { productAPI } from '../services/productAPI'
+import { categoriesAPI } from '../services/categoriesAPI.js'
 import { displayImageUrl } from '../services/api'
 import { isLowStock, LOW_STOCK_THRESHOLD } from '../utils/stockThreshold.js'
 import { notifyInventoryUpdated } from '../utils/inventoryEvents.js'
@@ -17,6 +18,7 @@ export default function AdminProducts() {
     const [editingProduct, setEditingProduct] = useState(null)
     const [uploadingImage, setUploadingImage] = useState(false)
     const [saving, setSaving] = useState(false)
+    /** Categorías desde la API (tabla categories) */
     const [categories, setCategories] = useState([])
     const [formData, setFormData] = useState({
         name: '',
@@ -24,34 +26,51 @@ export default function AdminProducts() {
         price: '',
         image: '',
         category: '',
+        categoryId: '',
         isActive: true
     })
     const [imagePreview, setImagePreview] = useState('')
     const [adminProductsPage, setAdminProductsPage] = useState(1)
 
     const resetForm = useCallback(() => {
-        // Usar la primera categoría disponible o vacío si no hay categorías
-        const defaultCategory = categories.length > 0 ? categories[0] : ''
+        const first = categories[0]
+        const defaultId = first?.id != null ? String(first.id) : ''
+        const defaultName = first?.name || ''
         setFormData({
             name: '',
             description: '',
             price: '',
             image: '',
-            category: defaultCategory,
+            category: defaultName,
+            categoryId: defaultId,
             isActive: true
         })
         setEditingProduct(null)
         setImagePreview('')
     }, [categories])
 
+    const loadCategories = async () => {
+        try {
+            const data = await categoriesAPI.getAll()
+            setCategories(Array.isArray(data) ? data : [])
+        } catch (err) {
+            console.error(err)
+        }
+    }
+
     useEffect(() => {
         loadProducts()
+        loadCategories()
     }, [])
 
-    // Actualizar categoría por defecto cuando se cargan las categorías
     useEffect(() => {
-        if (categories.length > 0 && !formData.category) {
-            setFormData(prev => ({ ...prev, category: categories[0] }))
+        if (categories.length > 0 && !formData.categoryId) {
+            const c = categories[0]
+            setFormData((prev) => ({
+                ...prev,
+                category: c.name,
+                categoryId: String(c.id),
+            }))
         }
     }, [categories])
 
@@ -75,20 +94,6 @@ export default function AdminProducts() {
             setLoading(true)
             const data = await productAPI.getAll()
             setProducts(data)
-            
-            // Extraer todas las categorías únicas de los productos
-            const allCategories = data.map(product => product.category).filter(cat => cat && cat.trim() !== '')
-            const uniqueCategories = [...new Set(allCategories)]
-            // Ordenar alfabéticamente
-            uniqueCategories.sort()
-            
-            setCategories(uniqueCategories)
-            
-            // Si no hay categorías, establecer una por defecto
-            if (uniqueCategories.length > 0 && !formData.category) {
-                setFormData(prev => ({ ...prev, category: uniqueCategories[0] }))
-            }
-            
             setError('')
         } catch (err) {
             setError(err.message || 'Error al cargar productos')
@@ -148,11 +153,25 @@ export default function AdminProducts() {
 
         try {
             setSaving(true)
-            // Asegurar que el stock siempre sea 0 para productos nuevos
-            const productData = editingProduct 
-                ? { ...formData } // Al editar, no modificamos el stock
-                : { ...formData, stock: 0 } // Al crear, siempre stock 0
-            
+            const cid =
+                formData.categoryId !== '' && formData.categoryId != null
+                    ? parseInt(formData.categoryId, 10)
+                    : null
+            const cat =
+                cid != null && !Number.isNaN(cid) ? categories.find((c) => c.id === cid) : null
+            const productData = {
+                name: formData.name,
+                description: formData.description,
+                price: formData.price,
+                image: formData.image,
+                isActive: formData.isActive,
+            }
+            if (cid != null && !Number.isNaN(cid)) {
+                productData.categoryId = cid
+                if (cat?.name) productData.category = cat.name
+            }
+            if (!editingProduct) productData.stock = 0
+
             if (editingProduct) {
                 await productAPI.update(editingProduct.id, productData)
             } else {
@@ -173,23 +192,28 @@ export default function AdminProducts() {
 
     const handleEdit = (product) => {
         setEditingProduct(product)
-        const productCategory = product.category || ''
-        
-        // Si la categoría del producto no está en la lista, agregarla
-        if (productCategory && !categories.includes(productCategory)) {
-            setCategories(prev => {
-                const updated = [...prev, productCategory].sort()
-                return updated
-            })
+        let categoryId =
+            product.categoryId != null ? String(product.categoryId) : ''
+        let categoryName = product.category || ''
+        if (!categoryId && categoryName && categories.length) {
+            const found = categories.find(
+                (c) => c.name === categoryName || c.slug === product.categorySlug
+            )
+            if (found) categoryId = String(found.id)
         }
-        
+        if (!categoryName && categoryId) {
+            const found = categories.find((c) => String(c.id) === categoryId)
+            if (found) categoryName = found.name
+        }
+
         setFormData({
             name: product.name,
             description: product.description || '',
             price: product.price,
             image: product.image || '',
-            category: productCategory || (categories.length > 0 ? categories[0] : ''),
-            isActive: product.isActive !== undefined ? product.isActive : true
+            category: categoryName || (categories[0]?.name ?? ''),
+            categoryId: categoryId || (categories[0] ? String(categories[0].id) : ''),
+            isActive: product.isActive !== undefined ? product.isActive : true,
         })
         setImagePreview(product.image || '')
         setShowModal(true)
@@ -686,8 +710,17 @@ export default function AdminProducts() {
                                         padding: 0
                                     }}>
                                         <select
-                                            value={formData.category}
-                                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                            required
+                                            value={formData.categoryId}
+                                            onChange={(e) => {
+                                                const id = e.target.value
+                                                const cat = categories.find((c) => String(c.id) === id)
+                                                setFormData({
+                                                    ...formData,
+                                                    categoryId: id,
+                                                    category: cat?.name || '',
+                                                })
+                                            }}
                                             style={{ 
                                                 padding: '12px 36px 12px 12px', 
                                                 borderRadius: '8px', 
@@ -724,21 +757,21 @@ export default function AdminProducts() {
                                             {categories.length === 0 ? (
                                                 <option value="" disabled>Cargando categorías...</option>
                                             ) : (
-                                                categories.map(cat => (
-                                                    <option 
-                                                        key={cat} 
-                                                        value={cat}
-                                                        style={{ 
-                                                            background: '#1a1a1a', 
+                                                categories.map((cat) => (
+                                                    <option
+                                                        key={cat.id}
+                                                        value={String(cat.id)}
+                                                        style={{
+                                                            background: '#1a1a1a',
                                                             color: '#fff',
                                                             padding: '12px 8px',
                                                             fontSize: '1rem',
                                                             fontWeight: '500',
                                                             border: 'none',
-                                                            margin: 0
+                                                            margin: 0,
                                                         }}
                                                     >
-                                                        {cat}
+                                                        {cat.name}
                                                     </option>
                                                 ))
                                             )}

@@ -1,4 +1,4 @@
-import { Truck, MessageSquare, Package, Users, FileText, ChevronRight, AlertTriangle, Shield } from 'lucide-react'
+import { Truck, MessageSquare, Package, Users, FileText, ChevronRight, AlertTriangle, Shield, Tags } from 'lucide-react'
 
 const MODULES = [
     {
@@ -18,6 +18,12 @@ const MODULES = [
         title: 'Productos',
         description: 'Alta, edición y baja del catálogo e inventario.',
         icon: Package,
+    },
+    {
+        id: 'admin-categories',
+        title: 'Categorías',
+        description: 'Gestionar líneas de producto, cabeceras y palabras clave.',
+        icon: Tags,
     },
     {
         id: 'admin-users',

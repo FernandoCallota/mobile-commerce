@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { User, Phone, MapPin, Mail, Lock, Shield } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { authAPI } from '../services/api'
+import { authAPI, getApiUrl } from '../services/api'
 
 export default function Register({ onNavigate }) {
     const [formData, setFormData] = useState({
@@ -39,7 +39,7 @@ export default function Register({ onNavigate }) {
     useEffect(() => {
         const checkAdmin = async () => {
             try {
-                const response = await fetch('http://localhost:3000/api/auth/check-admin')
+                const response = await fetch(`${getApiUrl()}/auth/check-admin`)
                 const data = await response.json()
                 setHasAdmin(data.hasAdmin)
             } catch (err) {

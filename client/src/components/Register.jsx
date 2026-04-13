@@ -196,41 +196,87 @@ export default function Register({ onNavigate }) {
                     />
                 </div>
 
-                {/* Selector de Rol - Solo si NO existe admin */}
+                {/* Selector de Rol - Solo si NO existe admin (layout en fila: evita solape icono/texto en móvil) */}
                 {!checkingAdmin && !hasAdmin && (
                     <div>
-                        <div style={{ position: 'relative', marginBottom: '8px' }}>
-                            <Shield size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 2, pointerEvents: 'none' }} />
+                        <label
+                            htmlFor="register-role"
+                            style={{
+                                display: 'block',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: 'var(--text-muted)',
+                                marginBottom: '8px',
+                                letterSpacing: '0.04em',
+                                textTransform: 'uppercase',
+                            }}
+                        >
+                            Tipo de cuenta
+                        </label>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                minHeight: '52px',
+                                paddingLeft: '14px',
+                                paddingRight: '42px',
+                                borderRadius: '12px',
+                                background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                position: 'relative',
+                                boxSizing: 'border-box',
+                            }}
+                        >
+                            <Shield
+                                size={22}
+                                style={{ flexShrink: 0, color: 'var(--text-muted)' }}
+                                aria-hidden
+                            />
                             <select
+                                id="register-role"
                                 name="role"
                                 value={formData.role}
                                 onChange={handleChange}
                                 required
-                                style={{ 
-                                    width: '100%', 
-                                    padding: '12px 12px 12px 40px', 
-                                    borderRadius: '8px', 
-                                    border: 'none', 
-                                    background: 'rgba(255,255,255,0.1)', 
+                                style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    border: 'none',
+                                    background: 'transparent',
                                     color: '#fff',
+                                    fontSize: '16px',
+                                    lineHeight: 1.35,
+                                    padding: '14px 0',
+                                    cursor: 'pointer',
+                                    outline: 'none',
                                     appearance: 'none',
-                                    cursor: 'pointer'
+                                    WebkitAppearance: 'none',
+                                    MozAppearance: 'none',
                                 }}
                             >
-                                <option value="cliente" style={{ background: '#121212', color: '#fff' }}>Cliente</option>
-                                <option value="administrador" style={{ background: '#121212', color: '#fff' }}>Administrador</option>
+                                <option value="cliente" style={{ background: '#1a1a1e', color: '#fff' }}>
+                                    Cliente
+                                </option>
+                                <option value="administrador" style={{ background: '#1a1a1e', color: '#fff' }}>
+                                    Administrador
+                                </option>
                             </select>
-                            <div style={{ 
-                                position: 'absolute', 
-                                right: '12px', 
-                                top: '50%', 
-                                transform: 'translateY(-50%)', 
-                                pointerEvents: 'none',
-                                color: 'var(--text-muted)',
-                                fontSize: '12px'
-                            }}>
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    right: '16px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    pointerEvents: 'none',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '11px',
+                                    lineHeight: 1,
+                                }}
+                                aria-hidden
+                            >
                                 ▼
-                            </div>
+                            </span>
                         </div>
                         <div style={{ 
                             padding: '10px 12px', 

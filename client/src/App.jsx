@@ -664,6 +664,28 @@ function App() {
         return homeCategories.slice(start, start + HOME_CATEGORIES_PAGE_SIZE)
     }, [homeCategories, homeCategoryPage])
 
+    // Una imagen por categoría sin repetir el mismo producto (evita dos "MASCOTAS" si un ítem encaja en varias palabras clave)
+    const homeCategoryImageById = useMemo(() => {
+        const used = new Set()
+        const map = {}
+        for (const cat of homeCategories) {
+            const keywords = categoryMapCatalog[cat.id] || []
+            const found = products.find(
+                (p) =>
+                    !used.has(p.id) &&
+                    keywords.some(
+                        (k) =>
+                            p.name.toLowerCase().includes(k) ||
+                            (p.category && p.category.toLowerCase().includes(k))
+                    ) &&
+                    p.image
+            )
+            if (found) used.add(found.id)
+            map[cat.id] = (found?.image && displayImageUrl(found.image)) || '/assets/baner.webp'
+        }
+        return map
+    }, [categoryMapCatalog, products, homeCategories])
+
     useEffect(() => {
         if (activeTab !== 'home') return
         if (homeCategoryPageCount <= 1) return
@@ -672,22 +694,6 @@ function App() {
         }, 5000)
         return () => clearInterval(id)
     }, [activeTab, homeCategoryPageCount])
-
-    const resolveCategoryImage = useCallback(
-        (catId) => {
-            const keywords = categoryMapCatalog[catId] || []
-            const found = products.find(
-                (p) =>
-                    keywords.some(
-                        (k) =>
-                            p.name.toLowerCase().includes(k) ||
-                            (p.category && p.category.toLowerCase().includes(k))
-                    ) && p.image
-            )
-            return (found?.image && displayImageUrl(found.image)) || '/assets/baner.webp'
-        },
-        [categoryMapCatalog, products]
-    )
 
     const goToCategory = useCallback(
         (catId) => {
@@ -1032,7 +1038,7 @@ function App() {
                                                         position: 'relative',
                                                         width: '100%',
                                                         aspectRatio: '1 / 1',
-                                                        backgroundImage: `url("${resolveCategoryImage(cat.id)}")`,
+                                                        backgroundImage: `url("${homeCategoryImageById[cat.id]}")`,
                                                         backgroundSize: 'cover',
                                                         backgroundPosition: 'center',
                                                     }}

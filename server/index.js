@@ -41,9 +41,15 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false, // Permitir recursos externos si es necesario
 }));
 
+// Normaliza origen (evita fallos si FRONTEND_URL lleva barra final y el navegador no)
+function normalizeOrigin(url) {
+    if (!url) return '';
+    return String(url).trim().replace(/\/+$/, '');
+}
+
 // CORS configurado
 const allowedOrigins = process.env.FRONTEND_URL
-    ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
+    ? process.env.FRONTEND_URL.split(',').map((o) => normalizeOrigin(o))
     : [
         'http://localhost:5173',
         'http://localhost:4040',
@@ -61,10 +67,12 @@ app.use(cors({
         // Permitir requests sin origin (mobile apps, Postman, etc.)
         if (!origin) return callback(null, true);
 
+        const requestOrigin = normalizeOrigin(origin);
+
         // Fuera de producción: localhost, 127.0.0.1, ::1 e IPs de red privada (móvil en LAN)
         if (allowLocalNetworkOrigins) {
             if (
-                allowedOrigins.includes(origin) ||
+                allowedOrigins.includes(requestOrigin) ||
                 origin.includes('localhost') ||
                 origin.includes('127.0.0.1') ||
                 /^http:\/\/\[::1\]:\d+$/.test(origin) ||
@@ -76,7 +84,7 @@ app.use(cors({
             }
         }
 
-        if (allowedOrigins.includes(origin)) {
+        if (allowedOrigins.includes(requestOrigin)) {
             callback(null, true);
         } else {
             callback(new Error('No permitido por CORS'));

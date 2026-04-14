@@ -14,6 +14,7 @@ export default function AdminProducts() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [searchTerm, setSearchTerm] = useState('')
+    const [showInactive, setShowInactive] = useState(false)
     const [showModal, setShowModal] = useState(false)
     const [editingProduct, setEditingProduct] = useState(null)
     const [uploadingImage, setUploadingImage] = useState(false)
@@ -150,6 +151,10 @@ export default function AdminProducts() {
             setError('Nombre y precio son requeridos')
             return
         }
+        if (!editingProduct && !formData.image) {
+            setError('Sube una imagen antes de crear el producto')
+            return
+        }
 
         try {
             setSaving(true)
@@ -220,7 +225,7 @@ export default function AdminProducts() {
     }
 
     const handleDelete = async (id) => {
-        if (!window.confirm('¿Estás seguro de eliminar este producto?')) {
+        if (!window.confirm('Esto desactiva el producto (no se borra). ¿Continuar?')) {
             return
         }
 
@@ -229,7 +234,8 @@ export default function AdminProducts() {
             await loadProducts()
             notifyInventoryUpdated()
         } catch (err) {
-            setError(err.message || 'Error al eliminar producto')
+            console.error('Error al desactivar producto:', err)
+            setError(err.message || 'Error al desactivar producto')
         }
     }
 
@@ -240,14 +246,15 @@ export default function AdminProducts() {
 
     const filteredProducts = useMemo(() => {
         const search = searchTerm.toLowerCase().trim()
-        if (!search) return products
-        return products.filter(
+        let list = showInactive ? products : products.filter((p) => p.isActive !== false)
+        if (!search) return list
+        return list.filter(
             (product) =>
                 product.name.toLowerCase().includes(search) ||
                 (product.description && product.description.toLowerCase().includes(search)) ||
                 (product.category && product.category.toLowerCase().includes(search))
         )
-    }, [products, searchTerm])
+    }, [products, searchTerm, showInactive])
 
     const adminProductsTotalPages = Math.max(1, Math.ceil(filteredProducts.length / ADMIN_PRODUCTS_PAGE_SIZE))
     const adminProductsPageSafe = Math.min(Math.max(1, adminProductsPage), adminProductsTotalPages)
@@ -311,6 +318,27 @@ export default function AdminProducts() {
                     }}
                 />
             </div>
+
+            <label
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '16px',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                }}
+            >
+                <input
+                    type="checkbox"
+                    checked={showInactive}
+                    onChange={(e) => setShowInactive(e.target.checked)}
+                    style={{ width: 18, height: 18, accentColor: 'var(--primary-color)' }}
+                />
+                Mostrar inactivos
+            </label>
 
             {/* Lista de productos (paginada; miniatura completa sin recorte) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>

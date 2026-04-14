@@ -162,7 +162,10 @@ export const deleteProduct = async (req, res) => {
         product.isActive = false;
         await product.save();
 
-        res.json({ message: 'Producto eliminado correctamente', product: formatProduct(await Product.findByPk(id, { include: [categoryInclude] })) });
+        res.json({
+            message: 'Producto desactivado correctamente',
+            product: formatProduct(await Product.findByPk(id, { include: [categoryInclude] })),
+        });
     } catch (error) {
         console.error('Error al eliminar producto:', error);
         res.status(500).json({ message: 'Error al eliminar producto', error: error.message });

@@ -421,46 +421,113 @@ textarea:focus::placeholder {
   font-size: 1rem;
 }
 
-/* Aviso de stock bajo — cliente (misma línea visual que admin/Kardex, solo informativo) */
-.client-stock-info-banner {
-  padding: 14px 16px;
-  margin-bottom: 20px;
-  border-left: 4px solid var(--accent-color);
-  background: rgba(244, 63, 94, 0.12);
+/* Mini globo informativo de stock (cliente) — bajo el icono del header */
+.client-stock-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  width: min(92vw, 300px);
+  max-height: min(72vh, 380px);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
 }
 
-.client-stock-info-banner__inner {
+.client-stock-popover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 18px;
+  border: 9px solid transparent;
+  border-bottom-color: #22c55e;
+  z-index: 1;
+}
+
+.client-stock-popover::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 20px;
+  border: 7px solid transparent;
+  border-bottom-color: rgba(15, 23, 42, 0.98);
+  margin-bottom: -2px;
+  z-index: 2;
+}
+
+.client-stock-popover__inner {
+  position: relative;
+  display: flex;
+  border-radius: 14px;
+  border: 2px solid #22c55e;
+  background: rgba(15, 23, 42, 0.98);
+  overflow: hidden;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+
+.client-stock-popover__accent {
+  width: 4px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, var(--accent-color), rgba(244, 63, 94, 0.5));
+}
+
+.client-stock-popover__content {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 12px 12px 10px;
+  overflow-y: auto;
+}
+
+.client-stock-popover__head {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 8px;
 }
 
-.client-stock-info-banner__icon {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.client-stock-info-banner__title {
-  display: block;
-  color: var(--text-color);
-  font-size: 0.95rem;
+.client-stock-popover__title {
+  font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.35;
+  color: #f8fafc;
 }
 
-.client-stock-info-banner__list {
+.client-stock-popover__list {
   margin: 8px 0 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  font-size: 0.78rem;
   line-height: 1.5;
+  color: rgba(226, 232, 240, 0.85);
 }
 
-.client-stock-info-banner__hint {
+.client-stock-popover__hint {
   margin: 10px 0 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  opacity: 0.9;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.88);
   font-style: italic;
+}
+
+.client-stock-alert-anchor.stock-alert-header-wrap {
+  padding: 0;
+}
+
+.stock-alert-header-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stock-alert-header-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .stock-alert-header-wrap {

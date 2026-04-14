@@ -351,30 +351,34 @@ function HomeHeroCarousel({ onVerCatalogo }) {
     )
 }
 
-/** Mismo bloque visual que AdminKardex; para visitantes/clientes (solo informativo, no gestión). */
-function ClientStockInfoBanner({ products, threshold }) {
+/** Contenido del mini panel flotante bajo el icono de alerta (cliente / visitante). */
+function ClientStockPopoverPanel({ products, threshold }) {
     if (!products?.length) return null
     return (
         <div
-            id="client-stock-info"
-            className="client-stock-info-banner glass glass-card"
-            role="status"
-            aria-live="polite"
+            id="client-stock-popover-root"
+            className="client-stock-popover"
+            role="dialog"
+            aria-modal="false"
+            aria-labelledby="client-stock-popover-title"
         >
-            <div className="client-stock-info-banner__inner">
-                <AlertTriangle className="client-stock-info-banner__icon" size={22} color="var(--accent-color)" aria-hidden />
-                <div>
-                    <strong className="client-stock-info-banner__title">
-                        Alerta de stock: {products.length} producto(s) con menos de {threshold} unidades
-                    </strong>
-                    <p className="client-stock-info-banner__list">
+            <div className="client-stock-popover__inner">
+                <div className="client-stock-popover__accent" aria-hidden />
+                <div className="client-stock-popover__content">
+                    <div className="client-stock-popover__head">
+                        <AlertTriangle size={18} color="var(--accent-color)" aria-hidden />
+                        <strong id="client-stock-popover-title" className="client-stock-popover__title">
+                            Alerta de stock: {products.length} producto(s) con menos de {threshold} unidades
+                        </strong>
+                    </div>
+                    <p className="client-stock-popover__list">
                         {products
                             .slice(0, 12)
                             .map((p) => `${p.name} (${p.stock ?? 0})`)
                             .join(' · ')}
                         {products.length > 12 ? ` · y ${products.length - 12} más…` : ''}
                     </p>
-                    <p className="client-stock-info-banner__hint">
+                    <p className="client-stock-popover__hint">
                         Aviso informativo. La disponibilidad puede variar al confirmar tu pedido.
                     </p>
                 </div>
@@ -432,6 +436,8 @@ function App() {
     /** Notificaciones cliente (cambios de pedido / quejas respondidas) */
     const [clientUnread, setClientUnread] = useState(0)
     const [clientNotifs, setClientNotifs] = useState([])
+    /** Mini globo informativo de stock bajo el icono (cliente / visitante). */
+    const [clientStockPopoverOpen, setClientStockPopoverOpen] = useState(false)
 
     const resolveDetailProduct = (item) => products.find((x) => x.id === item.id) || item
 
@@ -866,20 +872,28 @@ function App() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
-    /** Icono de aviso de stock (cliente): lleva al bloque informativo en Inicio/Catálogo. */
-    const goToClientStockInfo = useCallback(() => {
-        setIsMenuOpen(false)
-        if (activeTab !== 'home' && activeTab !== 'products') {
-            setActiveTab('products')
-            setTimeout(() => {
-                document.getElementById('client-stock-info')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }, 400)
-        } else {
-            document.getElementById('client-stock-info')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }
+    const showClientStockInfo = user?.role !== 'administrador' && lowStockProducts.length > 0
+
+    useEffect(() => {
+        setClientStockPopoverOpen(false)
     }, [activeTab])
 
-    const showClientStockInfo = user?.role !== 'administrador' && lowStockProducts.length > 0
+    useEffect(() => {
+        if (!clientStockPopoverOpen) return
+        const close = (e) => {
+            if (e.target?.closest?.('.client-stock-alert-anchor')) return
+            setClientStockPopoverOpen(false)
+        }
+        const onKey = (e) => {
+            if (e.key === 'Escape') setClientStockPopoverOpen(false)
+        }
+        document.addEventListener('click', close, true)
+        document.addEventListener('keydown', onKey)
+        return () => {
+            document.removeEventListener('click', close, true)
+            document.removeEventListener('keydown', onKey)
+        }
+    }, [clientStockPopoverOpen])
 
     useEffect(() => {
         if (activeTab !== 'contact') return
@@ -1214,17 +1228,27 @@ function App() {
                     )}
                     {showClientStockInfo && (
                         <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={goToClientStockInfo}
-                            onKeyDown={(e) => e.key === 'Enter' && goToClientStockInfo()}
-                            className="stock-alert-header-wrap"
-                            style={{ cursor: 'pointer' }}
-                            title={`Aviso informativo: ${lowStockProducts.length} producto(s) con menos de ${LOW_STOCK_THRESHOLD} u. Clic para ver el detalle en la página.`}
-                            aria-label={`Aviso informativo de stock: ${lowStockProducts.length} producto(s) con menos de ${LOW_STOCK_THRESHOLD} unidades. Abre el aviso en Inicio o Catálogo.`}
+                            className={`stock-alert-header-wrap client-stock-alert-anchor${clientStockPopoverOpen ? ' client-stock-alert-anchor--open' : ''}`}
+                            style={{ position: 'relative', zIndex: clientStockPopoverOpen ? 60 : undefined }}
                         >
-                            <AlertTriangle size={24} color="var(--accent-color)" />
-                            <span className="stock-alert-header-badge">{lowStockProducts.length}</span>
+                            <button
+                                type="button"
+                                className="stock-alert-header-btn"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    setClientStockPopoverOpen((v) => !v)
+                                }}
+                                aria-expanded={clientStockPopoverOpen}
+                                aria-haspopup="dialog"
+                                aria-controls="client-stock-popover-root"
+                                title="Aviso informativo de stock — clic para ver detalle"
+                            >
+                                <AlertTriangle size={24} color="var(--accent-color)" aria-hidden />
+                                <span className="stock-alert-header-badge">{lowStockProducts.length}</span>
+                            </button>
+                            {clientStockPopoverOpen && (
+                                <ClientStockPopoverPanel products={lowStockProducts} threshold={LOW_STOCK_THRESHOLD} />
+                            )}
                         </div>
                     )}
                     {/* Notificaciones (admin: pedidos nuevos) / Mensajes (cliente) */}
@@ -1439,9 +1463,6 @@ function App() {
                     {activeTab === 'home' && (
                         <motion.div key="home" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                             <HomeHeroCarousel onVerCatalogo={() => navigateTo('products')} />
-                            {showClientStockInfo && (
-                                <ClientStockInfoBanner products={lowStockProducts} threshold={LOW_STOCK_THRESHOLD} />
-                            )}
                             <h3 style={{ marginBottom: '14px' }}>Destacados</h3>
 
                             <div
@@ -1789,9 +1810,6 @@ function App() {
                     {activeTab === 'products' && (
                         <motion.div key="products" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                             <h2 style={{ fontSize: '1.8rem', marginBottom: '12px' }}>Catálogo</h2>
-                            {showClientStockInfo && (
-                                <ClientStockInfoBanner products={lowStockProducts} threshold={LOW_STOCK_THRESHOLD} />
-                            )}
                             <div style={{ marginBottom: '16px' }}>
                                 <label className="catalog-search-label" htmlFor="catalog-search">
                                     <Search size={18} aria-hidden />

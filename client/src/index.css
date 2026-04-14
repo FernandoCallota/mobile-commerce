@@ -440,7 +440,8 @@ textarea:focus::placeholder {
   bottom: 100%;
   right: 18px;
   border: 9px solid transparent;
-  border-bottom-color: #22c55e;
+  /* Borde del globo (índigo, paleta marca) */
+  border-bottom-color: rgba(129, 140, 248, 0.75);
   z-index: 1;
 }
 
@@ -450,7 +451,8 @@ textarea:focus::placeholder {
   bottom: 100%;
   right: 20px;
   border: 7px solid transparent;
-  border-bottom-color: rgba(15, 23, 42, 0.98);
+  /* Relleno del pico: mismo tono que el fondo del globo */
+  border-bottom-color: rgba(20, 20, 25, 0.97);
   margin-bottom: -2px;
   z-index: 2;
 }
@@ -459,10 +461,13 @@ textarea:focus::placeholder {
   position: relative;
   display: flex;
   border-radius: 14px;
-  border: 2px solid #22c55e;
-  background: rgba(15, 23, 42, 0.98);
+  border: 2px solid rgba(129, 140, 248, 0.45);
+  background: rgba(20, 20, 25, 0.97);
   overflow: hidden;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(129, 140, 248, 0.12),
+    0 0 28px rgba(99, 102, 241, 0.12),
+    0 14px 36px rgba(0, 0, 0, 0.45);
 }
 
 .client-stock-popover__accent {

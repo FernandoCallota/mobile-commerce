@@ -1,3 +1,4 @@
+import sequelize from '../config/db.config.js';
 import Order from '../models/Order.js';
 import OrderItem from '../models/OrderItem.js';
 import OrderStatusHistory from '../models/OrderStatusHistory.js';
@@ -69,32 +70,53 @@ export const updateOrderStatus = async (req, res) => {
             return res.status(400).json({ message: 'Estado no válido' });
         }
 
-        const order = await Order.findByPk(id);
-        if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
+        const t = await sequelize.transaction();
+        try {
+            const order = await Order.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!order) {
+                await t.rollback();
+                return res.status(404).json({ message: 'Pedido no encontrado' });
+            }
 
-        let current = normalizeOrderStatus(order.status);
+            const current = normalizeOrderStatus(order.status);
 
-        if (current === next) {
+            if (current === next) {
+                await t.commit();
+                const full = await findOrderAdminFull(order.id);
+                return res.json(full);
+            }
+
+            const transitions = ADMIN_ALLOWED_TRANSITIONS[current] || [];
+            if (!transitions.includes(next)) {
+                await t.rollback();
+                return res.status(400).json({
+                    message: `No se puede pasar de "${current}" a "${next}". Permitidos: ${transitions.join(', ') || 'ninguno'}`,
+                });
+            }
+
+            await appendOrderStatusChange(
+                order,
+                next,
+                {
+                    actor: 'admin',
+                    userId: req.user?.id ?? null,
+                },
+                { transaction: t }
+            );
+
+            await t.commit();
             const full = await findOrderAdminFull(order.id);
             return res.json(full);
+        } catch (innerErr) {
+            await t.rollback();
+            throw innerErr;
         }
-
-        const transitions = ADMIN_ALLOWED_TRANSITIONS[current] || [];
-        if (!transitions.includes(next)) {
-            return res.status(400).json({
-                message: `No se puede pasar de "${current}" a "${next}". Permitidos: ${transitions.join(', ') || 'ninguno'}`,
-            });
-        }
-
-        await appendOrderStatusChange(order, next, {
-            actor: 'admin',
-            userId: req.user?.id ?? null,
-        });
-
-        const full = await findOrderAdminFull(order.id);
-        return res.json(full);
     } catch (error) {
         console.error('updateOrderStatus:', error);
-        return res.status(500).json({ message: 'Error al actualizar pedido' });
+        const code = error.statusCode ?? error.status;
+        if (code === 400) {
+            return res.status(400).json({ message: error.message });
+        }
+        return res.status(500).json({ message: 'Error al actualizar pedido', error: error.message });
     }
 };

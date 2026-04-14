@@ -176,7 +176,7 @@ export default function MyOrders() {
             if (actingId != null) return
             await load()
         }
-        const id = setInterval(tick, 30000)
+        const id = setInterval(tick, 10000)
         document.addEventListener('visibilitychange', tick)
         window.addEventListener('focus', tick)
         return () => {

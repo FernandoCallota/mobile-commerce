@@ -19,6 +19,7 @@ const PaginationBar = lazy(() => import('./components/PaginationBar.jsx'))
 const CustomSelect = lazy(() => import('./components/CustomSelect.jsx'))
 
 import { authAPI, productsAPI, setTokenExpiredCallback, displayImageUrl } from './services/api'
+import { adminAPI } from './services/adminAPI.js'
 import { categoriesAPI } from './services/categoriesAPI.js'
 import { orderAPI } from './services/orderAPI.js'
 import { contactTicketAPI } from './services/contactTicketAPI.js'
@@ -356,6 +357,9 @@ function App() {
     const [contactSubmitting, setContactSubmitting] = useState(false)
     /** Categorías desde la API (tabla categories) */
     const [apiCategories, setApiCategories] = useState([])
+    /** Notificaciones admin (pedidos) */
+    const [adminUnread, setAdminUnread] = useState(0)
+    const [adminNotifs, setAdminNotifs] = useState([])
 
     const resolveDetailProduct = (item) => products.find((x) => x.id === item.id) || item
 
@@ -384,6 +388,94 @@ function App() {
             console.error('Error al cargar categorías:', error)
         }
     }, [])
+
+    const playNotifSound = useCallback(() => {
+        try {
+            // Beep simple sin assets (evita depender de archivos)
+            const Ctx = window.AudioContext || window.webkitAudioContext
+            if (!Ctx) return
+            const ctx = new Ctx()
+            const o = ctx.createOscillator()
+            const g = ctx.createGain()
+            o.type = 'sine'
+            o.frequency.value = 880
+            g.gain.value = 0.04
+            o.connect(g)
+            g.connect(ctx.destination)
+            o.start()
+            setTimeout(() => {
+                o.stop()
+                ctx.close?.()
+            }, 180)
+        } catch {
+            // ignore
+        }
+    }, [])
+
+    // Admin: notificaciones de pedidos nuevos (polling)
+    useEffect(() => {
+        if (user?.role !== 'administrador') return
+
+        let mounted = true
+        const key = 'admin_last_seen_order_id'
+        const getLastSeen = () => {
+            const raw = localStorage.getItem(key)
+            const n = raw ? Number(raw) : 0
+            return Number.isFinite(n) ? n : 0
+        }
+        const setLastSeen = (id) => {
+            localStorage.setItem(key, String(id))
+        }
+
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            try {
+                const list = await adminAPI.getOrders()
+                if (!mounted || !Array.isArray(list) || list.length === 0) return
+                const maxId = Math.max(...list.map((o) => Number(o.id) || 0))
+                const lastSeen = getLastSeen()
+                if (maxId > lastSeen) {
+                    const news = list
+                        .filter((o) => (Number(o.id) || 0) > lastSeen)
+                        .slice(0, 5)
+                        .map((o) => ({
+                            id: o.id,
+                            createdAt: o.createdAt,
+                            total: o.total,
+                            status: o.status,
+                        }))
+                    setAdminNotifs((prev) => [...news, ...prev].slice(0, 20))
+                    setAdminUnread((u) => u + (maxId - lastSeen))
+                    playNotifSound()
+                    setLastSeen(maxId)
+                }
+            } catch (e) {
+                // silencioso
+            }
+        }
+
+        // priming (no sonar): solo setear lastSeen si no existe
+        ;(async () => {
+            try {
+                const list = await adminAPI.getOrders()
+                if (!mounted || !Array.isArray(list) || list.length === 0) return
+                const maxId = Math.max(...list.map((o) => Number(o.id) || 0))
+                if (!getLastSeen()) setLastSeen(maxId)
+            } catch {
+                // ignore
+            }
+        })()
+
+        const id = setInterval(tick, 10000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            mounted = false
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [user, playNotifSound])
 
     useEffect(() => {
         if (!detailProduct) return
@@ -414,6 +506,28 @@ function App() {
         
         return () => clearTimeout(timer)
     }, [loadProducts, loadCategories])
+
+    // Auto-refresco para cliente (home / catálogo): ver nuevos productos sin F5.
+    // Nota: esto es polling (no tiempo real). Evita refrescar si no está visible.
+    useEffect(() => {
+        const shouldPoll = activeTab === 'home' || activeTab === 'products'
+        if (!shouldPoll) return
+
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            await loadProducts()
+            await loadCategories()
+        }
+
+        const id = setInterval(tick, 30000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [activeTab, loadProducts, loadCategories])
 
     useEffect(() => {
         const onInventory = () => {
@@ -893,9 +1007,42 @@ function App() {
                             </span>
                         </div>
                     )}
-                    {/* Icono de mensajes */}
-                    <div style={{ position: 'relative', padding: '8px', cursor: 'pointer' }} onClick={() => alert('Sistema de mensajes próximamente')}>
+                    {/* Notificaciones (admin: pedidos nuevos) / Mensajes (cliente) */}
+                    <div
+                        style={{ position: 'relative', padding: '8px', cursor: 'pointer' }}
+                        onClick={() => {
+                            if (user?.role === 'administrador') {
+                                setAdminUnread(0)
+                                navigateTo('admin-orders')
+                            } else {
+                                alert('Sistema de mensajes próximamente')
+                            }
+                        }}
+                        title={user?.role === 'administrador' ? 'Notificaciones de pedidos' : 'Mensajes'}
+                    >
                         <MessageCircle size={24} />
+                        {user?.role === 'administrador' && adminUnread > 0 && (
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    right: 0,
+                                    background: 'var(--primary-color)',
+                                    color: '#fff',
+                                    fontSize: '10px',
+                                    fontWeight: 'bold',
+                                    borderRadius: '50%',
+                                    width: '18px',
+                                    height: '18px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 2px 5px rgba(99, 102, 241, 0.5)',
+                                }}
+                            >
+                                {adminUnread > 9 ? '9+' : adminUnread}
+                            </span>
+                        )}
                     </div>
                     {/* Carrito */}
                     <div style={{ position: 'relative', padding: '8px', cursor: 'pointer' }} onClick={() => navigateTo('cart')}>

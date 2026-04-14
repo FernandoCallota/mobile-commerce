@@ -360,6 +360,9 @@ function App() {
     /** Notificaciones admin (pedidos) */
     const [adminUnread, setAdminUnread] = useState(0)
     const [adminNotifs, setAdminNotifs] = useState([])
+    /** Notificaciones cliente (cambios de pedido / quejas respondidas) */
+    const [clientUnread, setClientUnread] = useState(0)
+    const [clientNotifs, setClientNotifs] = useState([])
 
     const resolveDetailProduct = (item) => products.find((x) => x.id === item.id) || item
 
@@ -466,6 +469,140 @@ function App() {
             }
         })()
 
+        const id = setInterval(tick, 10000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            mounted = false
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [user, playNotifSound])
+
+    // Cliente: notificaciones de cambios de estado en pedidos y respuestas en quejas/consultas (polling)
+    useEffect(() => {
+        if (user?.role !== 'cliente') return
+
+        let mounted = true
+        const ORDERS_KEY = 'client_last_seen_orders_state'
+        const TICKETS_KEY = 'client_last_seen_tickets_state'
+
+        const readMap = (key) => {
+            try {
+                const raw = localStorage.getItem(key)
+                if (!raw) return {}
+                const obj = JSON.parse(raw)
+                return obj && typeof obj === 'object' ? obj : {}
+            } catch {
+                return {}
+            }
+        }
+        const writeMap = (key, obj) => {
+            try {
+                localStorage.setItem(key, JSON.stringify(obj))
+            } catch {
+                // ignore
+            }
+        }
+
+        const prime = async () => {
+            try {
+                const [orders, tickets] = await Promise.all([
+                    orderAPI.listMine(),
+                    contactTicketAPI.listMine(),
+                ])
+                if (!mounted) return
+                const om = {}
+                for (const o of Array.isArray(orders) ? orders : []) {
+                    om[String(o.id)] = { status: o.status, updatedAt: o.updatedAt || o.createdAt }
+                }
+                const tm = {}
+                for (const t of Array.isArray(tickets) ? tickets : []) {
+                    tm[String(t.id)] = {
+                        status: t.status,
+                        respondedAt: t.respondedAt || null,
+                        adminResponse: t.adminResponse ? true : false,
+                        updatedAt: t.updatedAt || t.createdAt,
+                    }
+                }
+                if (!localStorage.getItem(ORDERS_KEY)) writeMap(ORDERS_KEY, om)
+                if (!localStorage.getItem(TICKETS_KEY)) writeMap(TICKETS_KEY, tm)
+            } catch {
+                // ignore
+            }
+        }
+
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            try {
+                const [orders, tickets] = await Promise.all([
+                    orderAPI.listMine(),
+                    contactTicketAPI.listMine(),
+                ])
+                if (!mounted) return
+
+                const prevOrders = readMap(ORDERS_KEY)
+                const nextOrders = {}
+                const orderChanges = []
+                for (const o of Array.isArray(orders) ? orders : []) {
+                    const id = String(o.id)
+                    const st = o.status
+                    const prev = prevOrders[id]
+                    nextOrders[id] = { status: st, updatedAt: o.updatedAt || o.createdAt }
+                    if (prev && prev.status && prev.status !== st) {
+                        orderChanges.push({
+                            kind: 'order',
+                            id: o.id,
+                            title: `Pedido #${o.id}`,
+                            message: `Estado: ${st}`,
+                            at: Date.now(),
+                        })
+                    }
+                }
+
+                const prevTickets = readMap(TICKETS_KEY)
+                const nextTickets = {}
+                const ticketChanges = []
+                for (const t of Array.isArray(tickets) ? tickets : []) {
+                    const id = String(t.id)
+                    nextTickets[id] = {
+                        status: t.status,
+                        respondedAt: t.respondedAt || null,
+                        adminResponse: t.adminResponse ? true : false,
+                        updatedAt: t.updatedAt || t.createdAt,
+                    }
+                    const prev = prevTickets[id]
+                    const nowHasResponse = !!t.adminResponse
+                    const prevHadResponse = !!prev?.adminResponse
+                    const statusChanged = prev?.status && prev.status !== t.status
+                    const gotResponse = !prevHadResponse && nowHasResponse
+                    if (prev && (statusChanged || gotResponse)) {
+                        ticketChanges.push({
+                            kind: 'ticket',
+                            id: t.id,
+                            title: `Caso #${t.id}`,
+                            message: gotResponse ? 'Tienes una respuesta' : `Estado: ${t.status}`,
+                            at: Date.now(),
+                        })
+                    }
+                }
+
+                const changes = [...orderChanges, ...ticketChanges]
+                if (changes.length) {
+                    setClientNotifs((prev) => [...changes, ...prev].slice(0, 20))
+                    setClientUnread((u) => Math.min(99, u + changes.length))
+                    playNotifSound()
+                }
+
+                writeMap(ORDERS_KEY, nextOrders)
+                writeMap(TICKETS_KEY, nextTickets)
+            } catch {
+                // ignore
+            }
+        }
+
+        prime()
         const id = setInterval(tick, 10000)
         document.addEventListener('visibilitychange', tick)
         window.addEventListener('focus', tick)
@@ -1015,10 +1152,12 @@ function App() {
                                 setAdminUnread(0)
                                 navigateTo('admin-orders')
                             } else {
-                                alert('Sistema de mensajes próximamente')
+                                setClientUnread(0)
+                                // Si tienes cambios, llévalo a pedidos; si no, a consultas
+                                navigateTo(clientNotifs.some((n) => n.kind === 'order') ? 'my-orders' : 'my-tickets')
                             }
                         }}
-                        title={user?.role === 'administrador' ? 'Notificaciones de pedidos' : 'Mensajes'}
+                        title={user?.role === 'administrador' ? 'Notificaciones de pedidos' : 'Actualizaciones'}
                     >
                         <MessageCircle size={24} />
                         {user?.role === 'administrador' && adminUnread > 0 && (
@@ -1041,6 +1180,28 @@ function App() {
                                 }}
                             >
                                 {adminUnread > 9 ? '9+' : adminUnread}
+                            </span>
+                        )}
+                        {user?.role === 'cliente' && clientUnread > 0 && (
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    right: 0,
+                                    background: 'var(--primary-color)',
+                                    color: '#fff',
+                                    fontSize: '10px',
+                                    fontWeight: 'bold',
+                                    borderRadius: '50%',
+                                    width: '18px',
+                                    height: '18px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 2px 5px rgba(99, 102, 241, 0.5)',
+                                }}
+                            >
+                                {clientUnread > 9 ? '9+' : clientUnread}
                             </span>
                         )}
                     </div>

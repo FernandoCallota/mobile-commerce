@@ -46,6 +46,9 @@ app.use(helmet({
         },
     },
     crossOriginEmbedderPolicy: false, // Permitir recursos externos si es necesario
+    // La app vive en Vercel y consume recursos desde Render (API).
+    // Si Helmet deja CORP en same-origin, el navegador bloquea imágenes del proxy con NotSameOrigin.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
 // Normaliza origen (evita fallos si FRONTEND_URL lleva barra final y el navegador no)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Package, Plus, Edit, Trash2, Search, X, Upload, Image as ImageIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { productAPI } from '../services/productAPI'
@@ -16,6 +16,7 @@ export default function AdminProducts() {
     const [searchTerm, setSearchTerm] = useState('')
     const [showInactive, setShowInactive] = useState(false)
     const [showModal, setShowModal] = useState(false)
+    const priceInputRef = useRef(null)
     const [editingProduct, setEditingProduct] = useState(null)
     const [uploadingImage, setUploadingImage] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -107,6 +108,16 @@ export default function AdminProducts() {
             return () => window.removeEventListener('keydown', handleEscape)
         }
     }, [showModal, resetForm])
+
+    /** Precio: la rueda del ratón no debe subir/bajar el número (listener no pasivo). */
+    useEffect(() => {
+        if (!showModal) return
+        const el = priceInputRef.current
+        if (!el) return
+        const onWheel = (e) => e.preventDefault()
+        el.addEventListener('wheel', onWheel, { passive: false })
+        return () => el.removeEventListener('wheel', onWheel)
+    }, [showModal])
 
     const loadProducts = async () => {
         try {
@@ -720,6 +731,8 @@ export default function AdminProducts() {
                                     />
 
                                     <input
+                                        ref={priceInputRef}
+                                        className="input-no-spin"
                                         type="number"
                                         placeholder="Precio"
                                         value={formData.price}

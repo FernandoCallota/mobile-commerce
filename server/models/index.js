@@ -37,6 +37,30 @@ async function migrateCategoriesSchema(sequelize) {
             console.warn(`migrateCategories [${label}]: ${e.message}`);
         }
     };
+    // Si Sequelize creó categoryId (camelCase) primero, unificar a category_id
+    await run(
+        `
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_attribute a
+    JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'products' AND a.attnum > 0 AND NOT a.attisdropped
+      AND a.attname = 'categoryId'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_attribute a
+    JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'products' AND a.attnum > 0 AND NOT a.attisdropped
+      AND a.attname = 'category_id'
+  ) THEN
+    ALTER TABLE products RENAME COLUMN "categoryId" TO category_id;
+  END IF;
+END $$;
+`,
+        'rename_categoryId_to_category_id'
+    );
     await run(
         `ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE;`,
         'category_id'

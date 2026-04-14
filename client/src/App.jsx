@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
-import { ShoppingCart, Home, User, Menu, X, Phone, Info, Package, Users, Shield, Heart, Leaf, Users as UsersIcon, Zap, MapPin, MessageCircle, MessageSquare, AlertTriangle, FileText, ZoomIn, Eye, EyeOff, ClipboardList, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ShoppingCart, Home, User, Menu, X, Phone, Info, Package, Users, Shield, Heart, Leaf, Users as UsersIcon, Zap, MapPin, MessageCircle, MessageSquare, AlertTriangle, FileText, ZoomIn, Eye, EyeOff, ClipboardList, Search, ChevronLeft, ChevronRight, XCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const Register = lazy(() => import('./components/Register'))
@@ -23,7 +23,7 @@ import { adminAPI } from './services/adminAPI.js'
 import { categoriesAPI } from './services/categoriesAPI.js'
 import { orderAPI } from './services/orderAPI.js'
 import { contactTicketAPI } from './services/contactTicketAPI.js'
-import { isLowStock, LOW_STOCK_THRESHOLD } from './utils/stockThreshold.js'
+import { isLowStock, LOW_STOCK_THRESHOLD, getClientStockVariant } from './utils/stockThreshold.js'
 import { INVENTORY_UPDATED_EVENT } from './utils/inventoryEvents.js'
 import { CATALOG_PAGE_SIZE } from './utils/paginationConstants.js'
 function AppTabSuspenseFallback() {
@@ -97,6 +97,7 @@ function ProductDetailModal({ product, resolveProduct, onClose, onAddToCart }) {
     const desc = (p.description && String(p.description).trim()) || 'Sin descripción disponible.'
     const categoryLabel = p.category ? String(p.category) : 'General'
     const stockVal = p.stock !== undefined && p.stock !== null ? Number(p.stock) : null
+    const stockVariant = getClientStockVariant(p.stock)
 
     return (
         <motion.div
@@ -145,21 +146,57 @@ function ProductDetailModal({ product, resolveProduct, onClose, onAddToCart }) {
                     <p className="product-detail-price">S/ {parseFloat(p.price).toFixed(2)}</p>
                     <p className="product-detail-meta">
                         <span className="product-detail-badge">{categoryLabel}</span>
-                        {stockVal !== null && !Number.isNaN(stockVal) && (
-                            <span className="product-detail-stock">{stockVal > 0 ? `${stockVal} en stock` : 'Consultar disponibilidad'}</span>
-                        )}
                     </p>
+                    {stockVariant === 'out' && (
+                        <div
+                            className="product-detail-stock-alert product-detail-stock-alert--out"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <XCircle className="product-detail-stock-alert__icon" size={20} strokeWidth={2} aria-hidden />
+                            <div className="product-detail-stock-alert__text">
+                                <span className="product-detail-stock-alert__title">Sin stock</span>
+                                <span className="product-detail-stock-alert__desc">
+                                    Este producto no está disponible por ahora. Prueba más tarde o contacta a la tienda.
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    {stockVariant === 'low' && (
+                        <div
+                            className="product-detail-stock-alert product-detail-stock-alert--low"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <AlertTriangle className="product-detail-stock-alert__icon" size={20} strokeWidth={2} aria-hidden />
+                            <div className="product-detail-stock-alert__text">
+                                <span className="product-detail-stock-alert__title">Pocas unidades</span>
+                                <span className="product-detail-stock-alert__desc">
+                                    Quedan {stockVal} en almacén (consideramos bajo menos de {LOW_STOCK_THRESHOLD} u.).
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    {stockVariant === 'ok' && (
+                        <p className="product-detail-stock-ok" role="status">
+                            <Package size={17} strokeWidth={2} aria-hidden />
+                            <span>
+                                {stockVal} unidades disponibles
+                            </span>
+                        </p>
+                    )}
                     <p className="product-detail-desc">{desc}</p>
                     <button
                         type="button"
                         className="btn-primary product-detail-add"
+                        disabled={stockVal === 0}
                         onClick={() => {
                             const { quantity: _q, ...rest } = p
                             onAddToCart(rest)
                             onClose()
                         }}
                     >
-                        Agregar al carrito
+                        {stockVal === 0 ? 'Sin stock' : 'Agregar al carrito'}
                     </button>
                 </div>
             </motion.div>

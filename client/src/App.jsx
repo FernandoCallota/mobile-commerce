@@ -351,6 +351,38 @@ function HomeHeroCarousel({ onVerCatalogo }) {
     )
 }
 
+/** Mismo bloque visual que AdminKardex; para visitantes/clientes (solo informativo, no gestión). */
+function ClientStockInfoBanner({ products, threshold }) {
+    if (!products?.length) return null
+    return (
+        <div
+            id="client-stock-info"
+            className="client-stock-info-banner glass glass-card"
+            role="status"
+            aria-live="polite"
+        >
+            <div className="client-stock-info-banner__inner">
+                <AlertTriangle className="client-stock-info-banner__icon" size={22} color="var(--accent-color)" aria-hidden />
+                <div>
+                    <strong className="client-stock-info-banner__title">
+                        Alerta de stock: {products.length} producto(s) con menos de {threshold} unidades
+                    </strong>
+                    <p className="client-stock-info-banner__list">
+                        {products
+                            .slice(0, 12)
+                            .map((p) => `${p.name} (${p.stock ?? 0})`)
+                            .join(' · ')}
+                        {products.length > 12 ? ` · y ${products.length - 12} más…` : ''}
+                    </p>
+                    <p className="client-stock-info-banner__hint">
+                        Aviso informativo. La disponibilidad puede variar al confirmar tu pedido.
+                    </p>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 /** Módulos de gestión bajo el hub «admin-panel» (no incluye el propio panel). */
 const ADMIN_SUB_TABS = new Set([
     'admin-orders',
@@ -834,6 +866,21 @@ function App() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
+    /** Icono de aviso de stock (cliente): lleva al bloque informativo en Inicio/Catálogo. */
+    const goToClientStockInfo = useCallback(() => {
+        setIsMenuOpen(false)
+        if (activeTab !== 'home' && activeTab !== 'products') {
+            setActiveTab('products')
+            setTimeout(() => {
+                document.getElementById('client-stock-info')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }, 400)
+        } else {
+            document.getElementById('client-stock-info')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+    }, [activeTab])
+
+    const showClientStockInfo = user?.role !== 'administrador' && lowStockProducts.length > 0
+
     useEffect(() => {
         if (activeTab !== 'contact') return
         if (user) {
@@ -1157,28 +1204,27 @@ function App() {
                             tabIndex={0}
                             onClick={() => navigateTo('admin-kardex')}
                             onKeyDown={(e) => e.key === 'Enter' && navigateTo('admin-kardex')}
-                            style={{ position: 'relative', padding: '8px', cursor: 'pointer' }}
+                            className="stock-alert-header-wrap"
+                            style={{ cursor: 'pointer' }}
                             title={`${lowStockProducts.length} producto(s) con menos de ${LOW_STOCK_THRESHOLD} u. en stock — clic para Kardex`}
                         >
                             <AlertTriangle size={24} color="var(--accent-color)" />
-                            <span style={{
-                                position: 'absolute',
-                                top: 0,
-                                right: 0,
-                                background: 'var(--accent-color)',
-                                color: '#fff',
-                                fontSize: '10px',
-                                fontWeight: 'bold',
-                                borderRadius: '50%',
-                                width: '18px',
-                                height: '18px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 2px 5px rgba(244, 63, 94, 0.5)'
-                            }}>
-                                {lowStockProducts.length}
-                            </span>
+                            <span className="stock-alert-header-badge">{lowStockProducts.length}</span>
+                        </div>
+                    )}
+                    {showClientStockInfo && (
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={goToClientStockInfo}
+                            onKeyDown={(e) => e.key === 'Enter' && goToClientStockInfo()}
+                            className="stock-alert-header-wrap"
+                            style={{ cursor: 'pointer' }}
+                            title={`Aviso informativo: ${lowStockProducts.length} producto(s) con menos de ${LOW_STOCK_THRESHOLD} u. Clic para ver el detalle en la página.`}
+                            aria-label={`Aviso informativo de stock: ${lowStockProducts.length} producto(s) con menos de ${LOW_STOCK_THRESHOLD} unidades. Abre el aviso en Inicio o Catálogo.`}
+                        >
+                            <AlertTriangle size={24} color="var(--accent-color)" />
+                            <span className="stock-alert-header-badge">{lowStockProducts.length}</span>
                         </div>
                     )}
                     {/* Notificaciones (admin: pedidos nuevos) / Mensajes (cliente) */}
@@ -1393,6 +1439,9 @@ function App() {
                     {activeTab === 'home' && (
                         <motion.div key="home" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                             <HomeHeroCarousel onVerCatalogo={() => navigateTo('products')} />
+                            {showClientStockInfo && (
+                                <ClientStockInfoBanner products={lowStockProducts} threshold={LOW_STOCK_THRESHOLD} />
+                            )}
                             <h3 style={{ marginBottom: '14px' }}>Destacados</h3>
 
                             <div
@@ -1740,6 +1789,9 @@ function App() {
                     {activeTab === 'products' && (
                         <motion.div key="products" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                             <h2 style={{ fontSize: '1.8rem', marginBottom: '12px' }}>Catálogo</h2>
+                            {showClientStockInfo && (
+                                <ClientStockInfoBanner products={lowStockProducts} threshold={LOW_STOCK_THRESHOLD} />
+                            )}
                             <div style={{ marginBottom: '16px' }}>
                                 <label className="catalog-search-label" htmlFor="catalog-search">
                                     <Search size={18} aria-hidden />

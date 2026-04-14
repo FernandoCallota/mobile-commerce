@@ -421,6 +421,70 @@ textarea:focus::placeholder {
   font-size: 1rem;
 }
 
+/* Aviso de stock bajo — cliente (misma línea visual que admin/Kardex, solo informativo) */
+.client-stock-info-banner {
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  border-left: 4px solid var(--accent-color);
+  background: rgba(244, 63, 94, 0.12);
+}
+
+.client-stock-info-banner__inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.client-stock-info-banner__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.client-stock-info-banner__title {
+  display: block;
+  color: var(--text-color);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.client-stock-info-banner__list {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.client-stock-info-banner__hint {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  opacity: 0.9;
+  font-style: italic;
+}
+
+.stock-alert-header-wrap {
+  position: relative;
+  padding: 8px;
+}
+
+.stock-alert-header-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--accent-color);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(244, 63, 94, 0.5);
+}
+
 /* Checkout / pago */
 .sr-only {
   position: absolute;

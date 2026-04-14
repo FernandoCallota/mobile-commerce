@@ -498,9 +498,33 @@ textarea:focus::placeholder {
 
 .client-stock-popover__list {
   margin: 8px 0 0;
+  padding-left: 1.1rem;
   font-size: 0.78rem;
   line-height: 1.5;
   color: rgba(226, 232, 240, 0.85);
+  list-style: disc;
+}
+
+.client-stock-popover__list li {
+  margin: 4px 0 0;
+  padding-left: 2px;
+}
+
+.client-stock-popover__list li:first-child {
+  margin-top: 0;
+}
+
+.client-stock-popover__qty {
+  opacity: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+
+.client-stock-popover__list-more {
+  list-style: none;
+  margin-left: -1rem;
+  padding-left: 0;
+  font-style: italic;
+  opacity: 0.85;
 }
 
 .client-stock-popover__hint {

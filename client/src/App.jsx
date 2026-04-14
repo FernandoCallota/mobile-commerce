@@ -371,13 +371,16 @@ function ClientStockPopoverPanel({ products, threshold }) {
                             Alerta de stock: {products.length} producto(s) con menos de {threshold} unidades
                         </strong>
                     </div>
-                    <p className="client-stock-popover__list">
-                        {products
-                            .slice(0, 12)
-                            .map((p) => `${p.name} (${p.stock ?? 0})`)
-                            .join(' · ')}
-                        {products.length > 12 ? ` · y ${products.length - 12} más…` : ''}
-                    </p>
+                    <ul className="client-stock-popover__list">
+                        {products.slice(0, 12).map((p) => (
+                            <li key={p.id}>
+                                {p.name} <span className="client-stock-popover__qty">({p.stock ?? 0})</span>
+                            </li>
+                        ))}
+                        {products.length > 12 && (
+                            <li className="client-stock-popover__list-more">… y {products.length - 12} más</li>
+                        )}
+                    </ul>
                     <p className="client-stock-popover__hint">
                         Aviso informativo. La disponibilidad puede variar al confirmar tu pedido.
                     </p>

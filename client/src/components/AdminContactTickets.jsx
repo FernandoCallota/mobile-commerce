@@ -66,6 +66,23 @@ export default function AdminContactTickets() {
         load()
     }, [load])
 
+    // Auto-refresco (evita F5): mientras está abierto y sin modal de detalle.
+    useEffect(() => {
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            if (detailId != null) return
+            await load()
+        }
+        const id = setInterval(tick, 20000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [detailId, load])
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
         if (!q) return tickets

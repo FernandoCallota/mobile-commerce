@@ -38,6 +38,24 @@ export default function AdminKardex() {
         loadData()
     }, [])
 
+    // Auto-refresco (evita F5): mientras está abierto y sin modal.
+    useEffect(() => {
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            if (showModal) return
+            await loadMovements()
+            await loadProducts()
+        }
+        const id = setInterval(tick, 15000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [showModal, filterType, filterProduct, filterDate])
+
     // Cerrar modal con tecla Escape
     useEffect(() => {
         const handleEscape = (e) => {

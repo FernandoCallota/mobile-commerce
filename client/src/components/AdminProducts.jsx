@@ -64,6 +64,24 @@ export default function AdminProducts() {
         loadCategories()
     }, [])
 
+    // Auto-refresco (evita F5): mientras el panel está abierto y sin modal.
+    useEffect(() => {
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            if (showModal) return
+            await loadProducts()
+            await loadCategories()
+        }
+        const id = setInterval(tick, 15000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [showModal])
+
     useEffect(() => {
         if (categories.length > 0 && !formData.categoryId) {
             const c = categories[0]

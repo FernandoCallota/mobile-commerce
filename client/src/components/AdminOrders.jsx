@@ -209,6 +209,24 @@ export default function AdminOrders() {
         load()
     }, [load])
 
+    // Auto-refresco (evita F5): mientras está abierto y sin modal de detalle / sin cambio de estado en curso.
+    useEffect(() => {
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            if (detailModalId != null) return
+            if (updatingId != null) return
+            await load()
+        }
+        const id = setInterval(tick, 15000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [detailModalId, updatingId, load])
+
     useEffect(() => {
         setOrdersPage(1)
     }, [ordersSearch])

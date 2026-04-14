@@ -37,6 +37,23 @@ export default function AdminUsers() {
         loadUsers()
     }, [])
 
+    // Auto-refresco (evita F5): mientras está abierto y sin modal.
+    useEffect(() => {
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            if (showModal) return
+            await loadUsers()
+        }
+        const id = setInterval(tick, 30000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [showModal])
+
     // Cerrar modal con tecla Escape
     useEffect(() => {
         const handleEscape = (e) => {

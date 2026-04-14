@@ -168,6 +168,24 @@ export default function MyOrders() {
         load()
     }, [load])
 
+    // Auto-refresco (evita F5): mientras el usuario está en esta pantalla y sin modal abierto.
+    useEffect(() => {
+        const tick = async () => {
+            if (document.visibilityState !== 'visible') return
+            if (detailModalId != null) return
+            if (actingId != null) return
+            await load()
+        }
+        const id = setInterval(tick, 30000)
+        document.addEventListener('visibilitychange', tick)
+        window.addEventListener('focus', tick)
+        return () => {
+            clearInterval(id)
+            document.removeEventListener('visibilitychange', tick)
+            window.removeEventListener('focus', tick)
+        }
+    }, [detailModalId, actingId, load])
+
     useEffect(() => {
         setOrdersPage(1)
     }, [ordersSearch])
